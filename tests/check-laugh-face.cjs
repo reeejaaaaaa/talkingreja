@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict');
+global.THREE=require('../vendor/three.min.js');
+require('../model.js');
+require('../laugh-face.js');
+require('../deform.js');
+const m=MiniRheza.createCharacter(),soft=new SoftFaceDeformer(m.softMeshes,m.head);
+const neutral=m.softMeshes.map(mesh=>mesh.geometry.attributes.position.array.slice());
+const e=new FaceLaughAnimator(m);
+e.apply(1,1);
+assert(m.eyes.every(eye=>!eye.visible),'Laughter must close both eyes');
+assert(e.layers.every(mesh=>mesh.visible),'Open mouth, teeth and tongue must be visible');
+assert(e.lips.every(mesh=>mesh.morphTargetInfluences[0]===1),'Lips must open');
+for(let n=0;n<30;n++){e.apply((n%10)/9,1);soft.step(1/60);}
+e.reset();
+assert(m.eyes.every(eye=>eye.visible&&eye.scale.y===1));
+assert(e.layers.every(mesh=>!mesh.visible));
+assert(e.smile.visible);
+assert(e.lips.every(mesh=>mesh.morphTargetInfluences[0]===0));
+m.softMeshes.forEach((mesh,i)=>assert.deepEqual(mesh.geometry.attributes.position.array,neutral[i],'Neutral sculpt must remain unchanged'));
+for(const mesh of e.layers)assert([...mesh.geometry.attributes.position.array].every(Number.isFinite));
+console.log('Laugh expression checks passed: mouth opens, eyes close, exact neutral geometry restored, finite animated geometry.');
