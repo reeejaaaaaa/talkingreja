@@ -5,15 +5,15 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=T
 const scene=new T.Scene(),camera=new T.PerspectiveCamera(33,1,.1,100);camera.position.set(0,.65,10.2);camera.lookAt(0,.32,0);
 scene.add(new T.HemisphereLight(0xfff7ed,0x9b858a,1.75));const key=new T.DirectionalLight(0xfff5eb,2.8);key.position.set(-3.5,5,5);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.normalBias=.035;key.shadow.bias=-.0002;key.shadow.camera.left=-4;key.shadow.camera.right=4;key.shadow.camera.top=4;key.shadow.camera.bottom=-4;scene.add(key);const fill=new T.DirectionalLight(0xe4edff,1.15);fill.position.set(4,1.5,4);scene.add(fill);const rim=new T.DirectionalLight(0xffe4cf,1.8);rim.position.set(1,4,-3);scene.add(rim);
 const characters={
- rheza:{name:'Rheza',create:()=>MiniRheza.createCharacter(),laugh:FaceLaughAnimator,pull:FacePullAnimator,hello:'Rambut baru. Pipinya tetap boleh ditarik.',file:'mini-rheza-reference-v4.glb',cheekX:.69,cheekY:-.28,noseY:-.08,cheekRadius:.53,noseRadius:.31},
- dudu:{name:'Dudu',create:()=>MiniDudu.createCharacter(),laugh:DuduLaughAnimator,pull:DuduPullAnimator,hello:'Hai, aku Dudu. Pipi dan perutku boleh dicubit!',file:'dudu-chubby-bear.glb',cheekX:.98,cheekY:-.48,noseY:-.18,cheekRadius:.64,noseRadius:.30}
+ rheza:{name:'Rheza',create:()=>MiniRheza.createCharacter(),laugh:FaceLaughAnimator,pull:FacePullAnimator,hello:'Rambut baru. Pipinya tetap boleh ditarik.',cheekX:.69,cheekY:-.28,noseY:-.08,cheekRadius:.53,noseRadius:.31},
+ dudu:{name:'Dudu',create:()=>MiniDudu.createCharacter(),laugh:DuduLaughAnimator,pull:DuduPullAnimator,hello:'Hai, aku Dudu. Pipi dan perutku boleh dicubit!',cheekX:.98,cheekY:-.48,noseY:-.18,cheekRadius:.64,noseRadius:.30}
 };
 const characterCache=new Map();let characterId='rheza';
 function characterBundle(id){if(!characterCache.has(id)){const spec=characters[id],model=spec.create(),soft=new SoftFaceDeformer(model.softMeshes,model.head);characterCache.set(id,{model,soft,expression:new spec.laugh(model),pullExpression:new spec.pull(model)});}return characterCache.get(id);}
 let {model,soft,expression,pullExpression}=characterBundle(characterId);scene.add(model.group);
 const laugh=new CheekLaughController({durationMs:2400}),pullState=new CheekPullState();let wasLaughing=false,pullAmount=0;
 const base=new T.Mesh(new T.CylinderGeometry(1.52,1.56,.14,96),new T.MeshStandardMaterial({color:'#e6d1c5',roughness:.85}));base.position.y=-2.40;base.receiveShadow=true;scene.add(base);const floor=new T.Mesh(new T.PlaneGeometry(100,100),new T.ShadowMaterial({opacity:.11}));floor.rotation.x=-Math.PI/2;floor.position.y=-2.49;floor.receiveShadow=true;scene.add(floor);
-const ray=new T.Raycaster(),ndc=new T.Vector2(),pointers=new Map();let rotating=false,yaw=0,pitch=0,last=performance.now(),blinkUntil=0,nextBlink=3.2,messageUntil=0,demo=null;const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ray=new T.Raycaster(),ndc=new T.Vector2(),pointers=new Map();let last=performance.now(),blinkUntil=0,nextBlink=3.2,messageUntil=0,demo=null;const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 function size(){let w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.position.z=w/h<.78?11.0:10.2;camera.updateProjectionMatrix();}new ResizeObserver(size).observe(stage);size();
 function tell(text,label,force=false){if(!force&&laugh.isActive(performance.now()))return;bubble.textContent=text;status.textContent=label;messageUntil=performance.now()+2600;}
 function cheekPoke(now,part='cheek'){if(laugh.isActive(now))return;if(laugh.poke(now)){tell('Hahaha, geli! Tunggu aku selesai ketawa dulu.','HAHAHA · LAGI KETAWA',true);}else{const area=part==='belly'?'perut':'pipi';tell('Toel '+area+' '+laugh.count+'/4. Empat kali bikin aku ketawa.','TOEL '+area.toUpperCase()+' · '+laugh.count+'/4');}}
@@ -26,26 +26,24 @@ function beginSoftGesture(id,anchor,normal,part){
  return soft.begin(id,anchor,normal,radius,mask);
 }
 function stopDemo(){if(demo){soft.release('demo');pullState.release('demo');demo=null;}}
-function setRotate(value){rotating=value;pointers.clear();laugh.clearGestures();pullState.clear();soft.releaseAll();stopDemo();document.querySelector('#rotate').setAttribute('aria-pressed',String(value));document.querySelector('#rotate').textContent=value?'✧ Kembali main':'↻ Putar model';document.querySelector('#mode-label').textContent=value?'Geser untuk memutar':'Mode main';canvas.style.cursor='grab';}
-document.querySelector('#rotate').onclick=()=>setRotate(!rotating);
-function reset(){pointers.clear();soft.reset();demo=null;yaw=pitch=0;model.group.rotation.set(0,0,0);model.head.rotation.set(0,0,0);laugh.reset();expression.reset();pullState.clear();pullExpression.reset();pullAmount=0;wasLaughing=false;setRotate(false);tell(characters[characterId].hello,'TEKAN + TAHAN + TARIK');}document.querySelector('#reset').onclick=reset;
-canvas.addEventListener('pointerdown',e=>{e.preventDefault();stopDemo();canvas.setPointerCapture(e.pointerId);if(rotating){pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});return;}rayFrom(e);const hit=ray.intersectObject(model.face,false)[0];if(!hit)return;const anchor=model.head.worldToLocal(hit.point.clone()),part=region(anchor);if(!part)return;const normal=hit.face.normal.clone().normalize(),plane=new T.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new T.Vector3()),hit.point),effect=beginSoftGesture(e.pointerId,anchor,normal,part);soft.target(e.pointerId,normal.clone().multiplyScalar(part==='nose'?-.24:-.32));pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,anchor,plane,normal,part,reversals:0,previousDirection:0,motion:0});pullState.begin(e.pointerId,part);laugh.beginGesture(e.pointerId,part,performance.now());canvas.style.cursor='grabbing';tell(part==='nose'?'Boop. Itu hidung, bukan bel.':part==='belly'?'Perutku empuk juga. Tahan, lalu tarik!':'Tahan… terus tarik ke mana aja.',part==='nose'?'HIDUNG DIPENCET':part==='belly'?'PERUT MASUK KE DALAM':'PIPI MASUK KE DALAM');});
-canvas.addEventListener('pointermove',e=>{let p=pointers.get(e.pointerId);if(!p)return;let dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;if(rotating){yaw+=dx*.009;pitch=T.MathUtils.clamp(pitch+dy*.004,-.30,.30);return;}rayFrom(e);let world=new T.Vector3();if(!ray.ray.intersectPlane(p.plane,world))return;let delta=model.head.worldToLocal(world).sub(p.anchor),distance=Math.hypot(e.clientX-p.startX,e.clientY-p.startY);if(distance<4)delta.copy(p.normal).multiplyScalar(p.part==='nose'?-.24:-.32);else{delta.clampLength(0,p.part==='nose'?.65:1.15);delta.addScaledVector(p.normal,.07*Math.min(1,delta.length()/.3));}soft.target(e.pointerId,delta);pullState.move(e.pointerId,distance);laugh.moveGesture(e.pointerId,distance);if((p.part==='cheek'||p.part==='belly')&&distance>8){const area=p.part==='belly'?'perut':'pipi';tell('Ih, '+area+'ku ditarik terus… hmph!',area.toUpperCase()+' DITARIK · SEBAL LUCU');}let direction=Math.sign(dx);p.motion+=Math.abs(dx)+Math.abs(dy);if(Math.abs(dx)>4&&p.previousDirection&&direction!==p.previousDirection)p.reversals++;if(Math.abs(dx)>4)p.previousDirection=direction;});
+function reset(){pointers.clear();soft.reset();demo=null;model.group.rotation.set(0,0,0);model.head.rotation.set(0,0,0);laugh.reset();expression.reset();pullState.clear();pullExpression.reset();pullAmount=0;wasLaughing=false;canvas.style.cursor='grab';tell(characters[characterId].hello,'');}document.querySelector('#reset').onclick=reset;
+canvas.addEventListener('pointerdown',e=>{e.preventDefault();stopDemo();canvas.setPointerCapture(e.pointerId);rayFrom(e);const hit=ray.intersectObject(model.face,false)[0];if(!hit)return;const anchor=model.head.worldToLocal(hit.point.clone()),part=region(anchor);if(!part)return;const normal=hit.face.normal.clone().normalize(),plane=new T.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new T.Vector3()),hit.point),effect=beginSoftGesture(e.pointerId,anchor,normal,part);soft.target(e.pointerId,normal.clone().multiplyScalar(part==='nose'?-.24:-.32));pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,anchor,plane,normal,part,reversals:0,previousDirection:0,motion:0});pullState.begin(e.pointerId,part);laugh.beginGesture(e.pointerId,part,performance.now());canvas.style.cursor='grabbing';tell(part==='nose'?'Boop. Itu hidung, bukan bel.':part==='belly'?'Perutku empuk juga. Tahan, lalu tarik!':'Tahan… terus tarik ke mana aja.',part==='nose'?'HIDUNG DIPENCET':part==='belly'?'PERUT MASUK KE DALAM':'PIPI MASUK KE DALAM');});
+canvas.addEventListener('pointermove',e=>{let p=pointers.get(e.pointerId);if(!p)return;let dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;rayFrom(e);let world=new T.Vector3();if(!ray.ray.intersectPlane(p.plane,world))return;let delta=model.head.worldToLocal(world).sub(p.anchor),distance=Math.hypot(e.clientX-p.startX,e.clientY-p.startY);if(distance<4)delta.copy(p.normal).multiplyScalar(p.part==='nose'?-.24:-.32);else{delta.clampLength(0,p.part==='nose'?.65:1.15);delta.addScaledVector(p.normal,.07*Math.min(1,delta.length()/.3));}soft.target(e.pointerId,delta);pullState.move(e.pointerId,distance);laugh.moveGesture(e.pointerId,distance);if((p.part==='cheek'||p.part==='belly')&&distance>8){const area=p.part==='belly'?'perut':'pipi';tell('Ih, '+area+'ku ditarik terus… hmph!',area.toUpperCase()+' DITARIK · SEBAL LUCU');}let direction=Math.sign(dx);p.motion+=Math.abs(dx)+Math.abs(dy);if(Math.abs(dx)>4&&p.previousDirection&&direction!==p.previousDirection)p.reversals++;if(Math.abs(dx)>4)p.previousDirection=direction;});
 function release(e){
  const p=pointers.get(e.pointerId);if(!p)return;
  const now=performance.now();
  // Pointer-up coordinates also catch a fast drag with no delivered move event.
- if(!rotating&&e.type==='pointerup')laugh.moveGesture(e.pointerId,Math.hypot(e.clientX-p.startX,e.clientY-p.startY));
- const isPoke=!rotating&&laugh.finishGesture(e.pointerId,now,e.type!=='pointerup');
+ if(e.type==='pointerup')laugh.moveGesture(e.pointerId,Math.hypot(e.clientX-p.startX,e.clientY-p.startY));
+ const isPoke=laugh.finishGesture(e.pointerId,now,e.type!=='pointerup');
  pointers.delete(e.pointerId);pullState.release(e.pointerId);soft.release(e.pointerId);canvas.style.cursor='grab';
- if(isPoke)cheekPoke(now,p.part);else if(!rotating)tell('Boing. Balik lagi.',laugh.count?'TOEL PIPI · '+laugh.count+'/4':'LEPAS → MEMBAL');
+ if(isPoke)cheekPoke(now,p.part);else tell('Boing. Balik lagi.',laugh.count?'TOEL PIPI · '+laugh.count+'/4':'LEPAS → MEMBAL');
 }
 canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);canvas.addEventListener('lostpointercapture',release);
 window.addEventListener('blur',()=>{pointers.clear();laugh.clearGestures();stopDemo();pullState.clear();soft.releaseAll();});
 document.querySelectorAll('[data-demo]').forEach(button=>button.onclick=()=>{
  if(laugh.isActive(performance.now()))return;
  const type=button.dataset.demo;if(type==='belly'&&!model.bellyAnchor)return;
- stopDemo();soft.releaseAll();if(pointers.size){pointers.clear();laugh.clearGestures();pullState.clear();}if(rotating)setRotate(false);
+ stopDemo();soft.releaseAll();if(pointers.size){pointers.clear();laugh.clearGestures();pullState.clear();}
  if(type!=='press')laugh.breakSequence();
  const part=type==='belly'?'belly':type==='nose'?'nose':'cheek',pulling=type==='pull'||type==='belly';
  const x=part==='nose'?0:(pulling?1:-1)*characters[characterId].cheekX,y=part==='nose'?characters[characterId].noseY:characters[characterId].cheekY;
@@ -58,7 +56,6 @@ document.querySelectorAll('[data-demo]').forEach(button=>button.onclick=()=>{
  tell(pulling?'Tahan '+area.toLowerCase()+'nya, tarik ke arah kursor.':part==='nose'?'Boop!':'Pipi masuk. Bukan cuma kepalanya goyang.',pulling?'DEMO TARIK '+area:part==='nose'?'DEMO BOOP':'DEMO TEKAN PIPI');
  if(type==='press')cheekPoke(performance.now());
 });
-document.querySelector('#download').onclick=e=>{e.preventDefault();const clean=characters[characterId].create(),data=exportCharacterGLB(clean.group),url=URL.createObjectURL(new Blob([data],{type:'model/gltf-binary'})),a=document.createElement('a');a.href=url;a.download=characters[characterId].file;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);clean.group.traverse(o=>{if(o.geometry)o.geometry.dispose();});};
 function selectCharacter(id){
  if(id===characterId||!characters[id])return;
  reset();scene.remove(model.group);characterId=id;
@@ -72,13 +69,13 @@ function selectCharacter(id){
 document.querySelectorAll('[data-character]').forEach(button=>button.addEventListener('click',()=>selectCharacter(button.dataset.character)));
 document.querySelector('#loading').remove();
 function frame(now){requestAnimationFrame(frame);let dt=Math.min((now-last)/1000,.04),time=now/1000;last=now;if(demo){let elapsed=(now-demo.start)/1000;if(demo.pulling&&elapsed>.25){soft.target('demo',new T.Vector3(.85,.22,.13));pullState.move('demo',20);}if(demo.pulling&&elapsed>.8&&!laugh.isActive(now))status.textContent=(demo.part==='belly'?'PERUT':'PIPI')+' DITARIK · SEBAL LUCU';if(elapsed>(demo.pulling?4.2:1.8)){soft.release('demo');pullState.release('demo');demo=null;tell('Boing. Balik lagi.','LEPAS → MEMBAL');}}
- if(!pointers.size){model.group.rotation.y+=(yaw-model.group.rotation.y)*Math.min(1,dt*14);model.head.rotation.x+=(pitch-model.head.rotation.x)*Math.min(1,dt*14);model.head.rotation.z=reduced?0:Math.sin(time*.8)*.007;model.group.position.y=reduced?0:Math.sin(time*1.5)*.012;}else if(rotating){model.group.rotation.y=yaw;model.head.rotation.x=pitch;}
+ if(!pointers.size){model.head.rotation.z=reduced?0:Math.sin(time*.8)*.007;model.group.position.y=reduced?0:Math.sin(time*1.5)*.012;}
  const active=laugh.isActive(now);let envelope=0;
  if(active){const t=laugh.progress(now),ramp=Math.min(1,t/.12,(1-t)/.18);envelope=ramp*ramp*(3-2*ramp);}else if(wasLaughing){tell('Fiuh! Toel pipiku empat kali lagi kalau mau bikin aku ketawa.','TOEL PIPI · '+laugh.count+'/4',true);nextBlink=time+1.5;}
  wasLaughing=active;
  const pullTarget=pullState.active&&!active?1:0;pullAmount+=(pullTarget-pullAmount)*(1-Math.exp(-dt*(pullTarget?18:22)));if(Math.abs(pullAmount-pullTarget)<.001)pullAmount=pullTarget;const scrunch=active?0:pullAmount;
  if(time>nextBlink&&!pointers.size&&!demo&&!active){blinkUntil=now+125;nextBlink=time+3.5+Math.random()*2;}let close=active?1-.96*envelope:now<blinkUntil?.07:1;for(let i=0;i<model.eyes.length;i++){let eye=model.eyes[i],target=close*(1-scrunch*(i===0?.48:.37));eye.scale.y+=(target-eye.scale.y)*Math.min(1,dt*30);}
  soft.step(dt);expression.apply(envelope*(reduced?1:.88+.12*Math.sin((now-(laugh.startTime??now))*.018)),envelope);pullExpression.apply(scrunch);
- if(messageUntil&&now>messageUntil&&!pointers.size&&!demo&&!active){bubble.textContent='Masih empuk. Coba tarik ke atas juga.';status.textContent='TEKAN + TAHAN + TARIK';messageUntil=0;}renderer.render(scene,camera);
+ if(messageUntil&&now>messageUntil&&!pointers.size&&!demo&&!active){bubble.textContent='Masih empuk. Coba tarik ke atas juga.';status.textContent='';messageUntil=0;}renderer.render(scene,camera);
 }requestAnimationFrame(frame);
 })();

@@ -15,7 +15,7 @@ function harness(){
  function element(dataset={}){return {dataset,style:{},textContent:'',clientWidth:800,clientHeight:600,events:new Map(),
   addEventListener(type,handler){this.events.set(type,handler);},setAttribute(){},remove(){},setPointerCapture(){},
   getBoundingClientRect(){return {left:0,top:0,width:800,height:600};}};}
- for(const id of ['scene','stage','bubble','reaction','loading','rotate','mode-label','reset','download','character-name'])nodes.set('#'+id,element());
+ for(const id of ['scene','stage','bubble','reaction','loading','reset','character-name'])nodes.set('#'+id,element());
  const demos=['press','pull','nose','belly'].map(demo=>element({demo}));
  const characters=['rheza','dudu'].map(character=>element({character}));
  class Renderer{constructor(){this.shadowMap={};}setPixelRatio(){}setSize(){}render(){}}
@@ -46,7 +46,7 @@ function harness(){
   tap(id=1){dispatch('pointerdown',id);dispatch('pointerup',id);now+=50;},
   tick(ms){now+=ms;frame(now);},get now(){return now;},
   blur:()=>windowEvents.get('blur')(),demo:type=>demos.find(x=>x.dataset.demo===type).onclick(),
-  rotate:()=>nodes.get('#rotate').onclick(),select:id=>characters.find(x=>x.dataset.character===id).events.get('click')(),
+  reset:()=>nodes.get('#reset').onclick(),select:id=>characters.find(x=>x.dataset.character===id).events.get('click')(),
   nose(value=true){hitPart=value?'nose':'cheek';},hit(part){hitPart=part;}};
 }
 
@@ -110,9 +110,9 @@ test('Demo pull clears partial sequence; four new press demos trigger',()=>{
  h.demo('pull');assert.equal(h.laugh.count,0);h.tick(500);assert.equal(h.laugh.isActive(h.now),false);
  for(let i=0;i<3;i++)h.demo('press');assert.equal(h.laugh.isActive(h.now),false);h.demo('press');assert.equal(h.laugh.isActive(h.now),true);
 });
-test('Nose press, rotate mode, and switching characters break the tap sequence',()=>{
- const h=harness();h.tap();h.nose();h.tap();assert.equal(h.laugh.count,0);h.nose(false);h.tap();h.rotate();assert.equal(h.laugh.count,0);
- h.rotate();h.tap();h.select('dudu');assert.equal(h.laugh.count,0);h.tap();assert.equal(h.laugh.count,1);
+test('Nose press, reset, and switching characters break the tap sequence',()=>{
+ const h=harness();h.tap();h.nose();h.tap();assert.equal(h.laugh.count,0);h.nose(false);h.tap();h.reset();assert.equal(h.laugh.count,0);assert.equal(h.status,'');
+ h.tap();h.select('dudu');assert.equal(h.laugh.count,0);h.tap();assert.equal(h.laugh.count,1);
 });
 test('Dudu belly counts on release and four belly taps trigger one laugh',()=>{
  const h=harness();h.select('dudu');h.hit('belly');
@@ -149,6 +149,12 @@ test('Belly demo resets an unfinished sequence and only appears for Dudu',()=>{
  h.tick(900);assert.equal(h.pull.active,true);assert.equal(h.laugh.isActive(h.now),false);
  assert.equal(h.status,'PERUT DITARIK \u00b7 SEBAL LUCU');h.tick(4300);assert.equal(h.pull.active,false);
  h.select('rheza');const before=h.soft.starts.length;h.demo('belly');assert.equal(h.soft.starts.length,before);
+});
+test('Idle and reset leave the removed instruction text empty',()=>{
+ const h=harness();assert.equal(h.status,'');h.tap();assert(h.status.includes('1/4'));
+ h.tick(3000);assert.equal(h.status,'');h.down();h.move();assert.equal(h.pull.active,true);
+ h.reset();assert.equal(h.status,'');assert.equal(h.pull.active,false);assert.equal(h.laugh.gestures.size,0);
+ h.up();assert.equal(h.laugh.count,0);h.tick(3000);assert.equal(h.status,'');
 });
 test('Rheza torso remains outside the playable face region',()=>{
  const h=harness();h.hit('belly');const before=h.soft.starts.length;h.tap();h.down();h.move();h.up(1,130,100);
