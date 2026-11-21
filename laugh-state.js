@@ -19,12 +19,13 @@ class CheekLaughController {
  }
  // A press is provisional until release: it may still become a cheek pull.
  beginGesture(id,part,now) {
-  if(part!=='cheek')this.breakSequence();
-  this.gestures.set(id,{part,dragged:false,eligible:part==='cheek'&&!this.update(now)&&!this.hasPull});
+  const softPart=part==='cheek'||part==='belly';
+  if(!softPart)this.breakSequence();
+  this.gestures.set(id,{part,dragged:false,eligible:softPart&&!this.update(now)&&!this.hasPull});
  }
  moveGesture(id,distancePx) {
   const gesture=this.gestures.get(id);
-  if(gesture&&gesture.part==='cheek'&&Number.isFinite(distancePx)&&distancePx>8&&!gesture.dragged){
+  if(gesture&&(gesture.part==='cheek'||gesture.part==='belly')&&Number.isFinite(distancePx)&&distancePx>8&&!gesture.dragged){
    gesture.dragged=true;
    this.breakSequence();
   }

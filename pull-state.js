@@ -7,7 +7,7 @@ class CheekPullState {
  begin(id,part){this.pointers.set(id,{part,pulled:false});}
  move(id,distancePx){
   const pointer=this.pointers.get(id);
-  if(pointer&&pointer.part==='cheek'&&Number.isFinite(distancePx)&&distancePx>8)pointer.pulled=true;
+  if(pointer&&(pointer.part==='cheek'||pointer.part==='belly')&&Number.isFinite(distancePx)&&distancePx>8)pointer.pulled=true;
  }
  release(id){this.pointers.delete(id);}
  clear(){this.pointers.clear();}
